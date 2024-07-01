@@ -2147,41 +2147,6 @@ std::string llviewerVR::INISaveRead(bool save)
 		else
 			ret.append("\n file not open!!!\n");
 	}
-	else
-	{
-		file.open(path, std::ios_base::out);
-		std::string s;
-		// s.append("EyeDistance");
-		// s.append(",");
-		// s.append(std::to_string(m_fEyeDistance));
-		// s.append(",");
-
-		s.append("FocusDistance");
-		s.append(",");
-		s.append(std::to_string(m_fFocusDistance));
-		s.append(",");
-
-		s.append("TextureShift");
-		s.append(",");
-		s.append(std::to_string(m_fTextureShift));
-		s.append(",");
-
-		s.append("TextureZoom");
-		s.append(",");
-		s.append(std::to_string(m_fTextureZoom));
-		s.append(",");
-
-		s.append("FieldOfView");
-		s.append(",");
-		s.append(std::to_string(m_fFOV));
-		
-		if (file.is_open())
-		{
-			file << s.c_str();
-			file.close();
-		}
-
-	}
 	return ret;
 
 }
