@@ -42,7 +42,6 @@ llviewerVR::llviewerVR()
 	m_kMenuKey = KEY_F5;
 	m_kPlusKey = KEY_F6;
 	m_kMinusKey = KEY_F7;
-	m_fEyeDistance = 65;
 	m_fFocusDistance = 10;
 	m_fTextureShift = 0;
 	m_fTextureZoom = 0;
@@ -59,6 +58,59 @@ LLPanel* panelp = NULL;
 
 llviewerVR::~llviewerVR()
 {
+}
+
+void llviewerVR::calcUVBounds(vr::EVREye eye, F32 *uMin, F32 *uMax, F32 *vMin, F32 *vMax) {
+	// Relevant code with useful math:
+	// https://github.com/LibreVR/Revive/blob/4843c1bed72c9c7888e6bfa429f263584c7586c1/Revive/CompositorBase.cpp#L481
+	// https://github.com/ValveSoftware/steamvr_unity_plugin/blob/9442d7d7d447e07aa21c64746633dcb5977bdd1e/Assets/SteamVR/Scripts/SteamVR.cs#L696
+	// Some more clarity:
+	// https://steamcommunity.com/app/358720/discussions/0/343786746000217310/
+
+	// https://github.com/KhronosGroup/OpenXR-SDK/blob/960c4a6aa8cc9f47e357c696b5377d817550bf88/src/common/xr_linear.h#L482
+	// Normal projection (but shouldn't matter)
+	// Each group of 4 lines represents the output of a coordinate. First group of 4 is new x, second group is new y, third is new z, fourth is new w
+	// Each line in a group is a former coordinate's contribution to the new coordinate. So first line N is x*N getting added to new x
+	// We project the old FOV by multiplying the coordinates (tans) by this projection matrix
+	// Left bound for example is (gameTanAngleLeft, 0, -1, 1)
+	// Note the negative z!
+
+
+	F32 gameTanAngleHeight = 2.0f * tan(LLViewerCamera::getInstance()->getView()/2.0f);
+	F32 gameTanAngleUp = gameTanAngleHeight/2.0f;
+	F32 gameTanAngleDown = -gameTanAngleUp;
+	F32 gameTanAngleWidth = gameTanAngleHeight * LLViewerCamera::getInstance()->getAspect();
+	F32 gameTanAngleRight = gameTanAngleWidth/2.0f;
+	F32 gameTanAngleLeft = -gameTanAngleRight;
+
+	F32 vrTanAngleLeft = 0.0;
+	F32 vrTanAngleRight = 0.0;
+	F32 vrTanAngleUp = 0.0;
+	F32 vrTanAngleDown = 0.0;
+	gHMD->GetProjectionRaw(eye, &vrTanAngleLeft, &vrTanAngleRight, &vrTanAngleDown, &vrTanAngleUp); // Valve documentation backwards?
+	F32 vrTanAngleWidth = vrTanAngleRight - vrTanAngleLeft;
+	F32 vrTanAngleHeight = vrTanAngleUp - vrTanAngleDown;
+
+	*uMin = gameTanAngleLeft * (2.0f / vrTanAngleWidth) - (vrTanAngleRight + vrTanAngleLeft) / vrTanAngleWidth;
+	*uMax = gameTanAngleRight * (2.0f / vrTanAngleWidth) - (vrTanAngleRight + vrTanAngleLeft) / vrTanAngleWidth;
+	*vMin = gameTanAngleDown * (2.0f / vrTanAngleHeight) - (vrTanAngleUp + vrTanAngleDown) / vrTanAngleHeight;
+	*vMax = gameTanAngleUp * (2.0f / vrTanAngleHeight) - (vrTanAngleUp + vrTanAngleDown) / vrTanAngleHeight;
+
+	// Convert [-1,1] to [0,1]
+
+	*uMin = *uMin * 0.5f + 0.5f;
+	*uMax = *uMax * 0.5f + 0.5f;
+	*vMin = *vMin * 0.5f + 0.5f;
+	*vMax = *vMax * 0.5f + 0.5f;
+
+
+
+
+}
+
+F32 llviewerVR::eyeDistance() {
+	vr::HmdMatrix34_t mat = gHMD->GetEyeToHeadTransform(vr::Eye_Right);
+	return 2000.0 * mat.m[0][3];
 }
 
 /*glh::matrix4f ConvertSteamVRMatrixToMatrix4(const vr::HmdMatrix34_t &matPose)
@@ -860,19 +912,19 @@ bool llviewerVR::ProcessVRCamera()
 		LLVector3 new_dir;
 		if (m_bEditActive)// lock HMD's rotation input for inworls object editing purposes.
 		{
-			if (m_fEyeDistance == 0)
+			if (eyeDistance() == 0)
 				LLViewerCamera::getInstance()->lookDir(m_vdir_orig, m_vup_orig);
-			new_dir = (m_vleft * (m_fEyeDistance / 1000));
+			new_dir = (m_vleft * (eyeDistance() / 1000));
 		}
 		else
 		{
-			if (m_fEyeDistance == 0)
+			if (eyeDistance() == 0)
 				LLViewerCamera::getInstance()->lookDir(m_vdir, m_vup);
-			new_dir = (-m_vleft * (m_fEyeDistance / 1000));
+			new_dir = (-m_vleft * (eyeDistance() / 1000));
 		}
 			
 		
-		if (m_fEyeDistance > 0)
+		if (eyeDistance() > 0)
 		{	
 			LLVector3 new_fwd_pos = m_vpos + (m_vdir * m_fFocusDistance);
 			
@@ -904,8 +956,8 @@ void llviewerVR::vrDisplay()
 			{
 				bx = 0;
 				by = 0;
-				tx = gPipeline.mScreen.getWidth();
-				ty = gPipeline.mScreen.getHeight();
+				tx = gPipeline.mRT->screen.getWidth();
+				ty = gPipeline.mRT->screen.getHeight();
 
 				m_iTextureShift = ((tx / 2) / 100)* m_fTextureShift;
 
@@ -1019,20 +1071,32 @@ void llviewerVR::vrDisplay()
 			if (!leftEyeDesc.IsReady)
 			{
 				glBindFramebuffer(GL_DRAW_FRAMEBUFFER, leftEyeDesc.mFBO);
-				if (m_iZoomIndex)
-					glClear(GL_COLOR_BUFFER_BIT);
+				glClear(GL_COLOR_BUFFER_BIT);
 				//leftEyeDesc.IsReady = TRUE;
+
+				F32 uMin;
+				F32 uMax;
+				F32 vMin;
+				F32 vMax;
+
+				calcUVBounds(vr::EVREye::Eye_Left, &uMin, &uMax, &vMin, &vMax);
 				
-				glBlitFramebuffer(bx, by, tx, ty, m_iTextureShift, 0, m_nRenderWidth + m_iTextureShift, m_nRenderHeight, GL_COLOR_BUFFER_BIT, GL_LINEAR);
+				glBlitFramebuffer(bx, by, tx, ty, m_nRenderWidth * uMin, m_nRenderHeight * vMin, m_nRenderWidth * uMax, m_nRenderHeight * vMax, GL_COLOR_BUFFER_BIT, GL_LINEAR);
 				
 			}
-			if ((leftEyeDesc.IsReady && !rightEyeDesc.IsReady) || m_fEyeDistance == 0)//if right camera was active bind left eye buffer for drawing in to
+			if ((leftEyeDesc.IsReady && !rightEyeDesc.IsReady) || eyeDistance() == 0)//if right camera was active bind left eye buffer for drawing in to
 			{
 				glBindFramebuffer(GL_DRAW_FRAMEBUFFER, rightEyeDesc.mFBO);
-				if (m_iZoomIndex)
-					glClear(GL_COLOR_BUFFER_BIT);
+				glClear(GL_COLOR_BUFFER_BIT);
 				rightEyeDesc.IsReady = TRUE;
-				glBlitFramebuffer(bx, by, tx, ty, -m_iTextureShift, 0, m_nRenderWidth - m_iTextureShift, m_nRenderHeight, GL_COLOR_BUFFER_BIT, GL_LINEAR);
+
+				F32 uMin;
+				F32 uMax;
+				F32 vMin;
+				F32 vMax;
+
+				calcUVBounds(vr::EVREye::Eye_Right, &uMin, &uMax, &vMin, &vMax);
+				glBlitFramebuffer(bx, by, tx, ty, m_nRenderWidth * uMin, m_nRenderHeight * vMin, m_nRenderWidth * uMax, m_nRenderHeight * vMax, GL_COLOR_BUFFER_BIT, GL_LINEAR);
 			}
 			if (!leftEyeDesc.IsReady)
 				leftEyeDesc.IsReady = TRUE;
@@ -1040,7 +1104,7 @@ void llviewerVR::vrDisplay()
 			//Remove bindings of read and draw buffer
 			glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
-			if (leftEyeDesc.IsReady && (rightEyeDesc.IsReady || m_fEyeDistance == 0))
+			if (leftEyeDesc.IsReady && (rightEyeDesc.IsReady || eyeDistance() == 0))
 			{
 
 				rightEyeDesc.IsReady = FALSE;
@@ -1303,8 +1367,8 @@ void llviewerVR::HandleKeyboard()
 			//LLViewerCamera::getInstance()->setDefaultFOV(1.8);
 			gHmdOffsetPos.mV[2] = 0;
 			INISaveRead(false);
-			if (m_fFOV > 20)
-				LLViewerCamera::getInstance()->setDefaultFOV(m_fFOV * DEG_TO_RAD);
+			// if (m_fFOV > 20)
+			// 	LLViewerCamera::getInstance()->setDefaultFOV(m_fFOV * DEG_TO_RAD);
 			
 			/*LLCoordWindow cpos;
 			cpos.mX = m_nRenderWidth / 2;
@@ -1907,10 +1971,11 @@ std::string llviewerVR::Settings()
 	//str.append("\n");	
 	if (m_iMenuIndex == 1)
 	{
-		m_fEyeDistance=Modify(m_fEyeDistance, 1.0, 0, 200);
+		vr::HmdMatrix34_t mat = gHMD->GetEyeToHeadTransform(vr::Eye_Left);
+		//m_fEyeDistance=Modify(m_fEyeDistance, 1.0, 0, 200);
 		str.append(sep1);
 		str.append("IPD = ");
-		str.append(std::to_string(m_fEyeDistance));
+		str.append(std::to_string(eyeDistance()));
 		str.append(sep2);
 		str.append("\nFocus Distance = ");
 		str.append(std::to_string(m_fFocusDistance));
@@ -1926,7 +1991,7 @@ std::string llviewerVR::Settings()
 	{
 		m_fFocusDistance=Modify(m_fFocusDistance, 0.25, 0.5, 10);
 		str.append("IPD = ");
-		str.append(std::to_string(m_fEyeDistance));
+		str.append(std::to_string(eyeDistance()));
 		str.append(sep1);
 		str.append("Focus Distance = ");
 		str.append(std::to_string(m_fFocusDistance));
@@ -1944,7 +2009,7 @@ std::string llviewerVR::Settings()
 	{
 		m_fTextureShift = Modify(m_fTextureShift, 0.5, -100, 100);
 		str.append("IPD = ");
-		str.append(std::to_string(m_fEyeDistance));
+		str.append(std::to_string(eyeDistance()));
 		str.append("\nFocus Distance = ");
 		str.append(std::to_string(m_fFocusDistance));
 		str.append(sep1);
@@ -1961,7 +2026,7 @@ std::string llviewerVR::Settings()
 	{
 		m_fTextureZoom = Modify(m_fTextureZoom, 1, -200, 200);
 		str.append("IPD = ");
-		str.append(std::to_string(m_fEyeDistance));
+		str.append(std::to_string(eyeDistance()));
 		str.append("\nFocus Distance = ");
 		str.append(std::to_string(m_fFocusDistance));
 		str.append("\nTexture shift = ");
@@ -1977,9 +2042,9 @@ std::string llviewerVR::Settings()
 	else if (m_iMenuIndex == 5)
 	{
 		m_fFOV = Modify(m_fFOV, 0.5, 50, 175);
-		LLViewerCamera::getInstance()->setDefaultFOV(m_fFOV * DEG_TO_RAD);
+		// LLViewerCamera::getInstance()->setDefaultFOV(m_fFOV * DEG_TO_RAD);
 		str.append("IPD = ");
-		str.append(std::to_string(m_fEyeDistance));
+		str.append(std::to_string(eyeDistance()));
 		str.append("\nFocus Distance = ");
 		str.append(std::to_string(m_fFocusDistance));
 		str.append("\nTexture shift = ");
@@ -2049,7 +2114,7 @@ std::string llviewerVR::INISaveRead(bool save)
 				{
 					//ret.append(line.append("|"));
 					getline(file, line, ',');
-					m_fEyeDistance = std::stof(line);
+					//m_fEyeDistance = std::stof(line);
 				}
 				else if (line == "FocusDistance")
 				{
@@ -2086,10 +2151,10 @@ std::string llviewerVR::INISaveRead(bool save)
 	{
 		file.open(path, std::ios_base::out);
 		std::string s;
-		s.append("EyeDistance");
-		s.append(",");
-		s.append(std::to_string(m_fEyeDistance));
-		s.append(",");
+		// s.append("EyeDistance");
+		// s.append(",");
+		// s.append(std::to_string(m_fEyeDistance));
+		// s.append(",");
 
 		s.append("FocusDistance");
 		s.append(",");
@@ -2207,7 +2272,7 @@ void llviewerVR::Debug()
 	str.append(std::to_string(m_fCamRotOffset));
 
 	str.append("\nL+R Camera Distance in mm\n");
-	str.append(std::to_string(m_fEyeDistance));
+	str.append(std::to_string(eyeDistance()));
 	str.append("\nCurrent FOV \n");
 	str.append(std::to_string(LLViewerCamera::getInstance()->getDefaultFOV()));
 	//str.append("\n LastGL ERR=");

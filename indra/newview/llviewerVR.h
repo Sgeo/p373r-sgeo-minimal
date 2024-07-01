@@ -1,6 +1,7 @@
 #pragma once
 
-#include <openvr.h>
+#include "../../../openvr/headers/openvr.h"
+#pragma comment(lib, "../../../openvr/lib/win64/openvr_api.lib")
 #include "llhudtext.h"
 #include "llgl.h"
 #include "string.h"
@@ -109,7 +110,6 @@ public:
 	S32 m_iThirdHeight;
 	
 	S32 m_iMenuIndex;
-	F32 m_fEyeDistance;
 	F32 m_fFocusDistance;
 	F32 m_fTextureShift;
 	F32 m_fFOV;
@@ -211,6 +211,8 @@ public:
 	void HandleKeyboard();
 	void Debug();
 	void InitUI();
+	void calcUVBounds(vr::EVREye eye, F32 *uMin, F32 *uMax, F32 *vMin, F32 *vMax);
+	F32 eyeDistance();
 
 	
 	llviewerVR();

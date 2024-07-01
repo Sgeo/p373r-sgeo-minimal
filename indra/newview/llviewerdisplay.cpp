@@ -1142,7 +1142,7 @@ void display(BOOL rebuild, F32 zoom_factor, int subfield, BOOL for_snapshot)
 			//################################### END P373R ######################################
 			//swap();
 			//################################### P373R ######################################
-			if (gVR.leftEyeDesc.IsReady  && !gVR.rightEyeDesc.IsReady && gVR.m_fEyeDistance > 0)
+			if (gVR.leftEyeDesc.IsReady  && !gVR.rightEyeDesc.IsReady && gVR.eyeDistance() > 0)
 			{
 				goto sec;
 
