@@ -205,9 +205,6 @@ public:
 	BOOL posToScreen(const LLVector3 &pos_agent, LLCoordGL &out_point, const BOOL clamp) const;
 	void buttonCallbackLeft();
 	void buttonCallbackRight();
-	std::string Settings();
-	F32 Modify(F32 val, F32 step, F32 min, F32 max);
-	std::string INISaveRead(bool save = false);
 	void HandleKeyboard();
 	void Debug();
 	void InitUI();

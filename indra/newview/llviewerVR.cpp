@@ -1,6 +1,7 @@
 ﻿#include "llviewerprecompiledheaders.h"
 #include "llviewerVR.h"
 #include "llviewerwindow.h"
+#include <string>
 #ifdef _WIN32
 #include "llwindowwin32.h"
 #endif
@@ -39,10 +40,7 @@ llviewerVR::llviewerVR()
 	hud_textp = NULL;
 	m_kEditKey = KEY_F4;
 	m_kDebugKey = KEY_F3;
-	m_kMenuKey = KEY_F5;
-	m_kPlusKey = KEY_F6;
-	m_kMinusKey = KEY_F7;
-	m_fFocusDistance = 10;
+	m_fFocusDistance = 1;
 	m_fTextureShift = 0;
 	m_fTextureZoom = 0;
 	m_fFOV = 100;
@@ -888,18 +886,8 @@ bool llviewerVR::ProcessVRCamera()
 			}
 
 			
-			if (m_iMenuIndex)
-			{
-				hud_textp->setString(Settings());
-				LLVector3 end = m_vpos + m_vdir * 1.0f;
-				hud_textp->setPositionAgent(end);
-				hud_textp->setDoFade(FALSE);
-				hud_textp->setHidden(FALSE);
-				
 
-				
-			}
-			else if (m_bDebugKeyDown)
+			if (m_bDebugKeyDown)
 			{
 				Debug();
 			}
@@ -1366,7 +1354,6 @@ void llviewerVR::HandleKeyboard()
 				m_bVrActive = FALSE;
 			//LLViewerCamera::getInstance()->setDefaultFOV(1.8);
 			gHmdOffsetPos.mV[2] = 0;
-			INISaveRead(false);
 			// if (m_fFOV > 20)
 			// 	LLViewerCamera::getInstance()->setDefaultFOV(m_fFOV * DEG_TO_RAD);
 			
@@ -1432,20 +1419,6 @@ void llviewerVR::HandleKeyboard()
 			m_iZoomIndex = 0;
 	}
 
-	if (gKeyboard->getKeyDown(m_kMenuKey) && !m_bMenuKeyDown)
-	{
-		m_bMenuKeyDown = TRUE;
-	}
-	else if (!gKeyboard->getKeyDown(m_kMenuKey) && m_bMenuKeyDown)
-	{
-		m_bMenuKeyDown = FALSE;
-		if (m_iMenuIndex == 5)
-			INISaveRead(true);
-
-		m_iMenuIndex++;
-		if (m_iMenuIndex > 5)
-			m_iMenuIndex = 0;
-	}
 }
 
 void llviewerVR::DrawCursors()
@@ -1959,197 +1932,9 @@ void  llviewerVR::buttonCallbackRight()
 	}
 }
 
-std::string llviewerVR::Settings()
-{
-	std::string str;
-	std::wstring wstr;
-	std::string sep1 = "\n\xe2\x96\x88\xe2\x96\x88\xe2\x96\x88 ";
-	std::string sep2 = " \xe2\x96\x88\xe2\x96\x88\xe2\x96\x88";
-	
 
-	//str = INISaveRead(false);
-	//str.append("\n");	
-	if (m_iMenuIndex == 1)
-	{
-		vr::HmdMatrix34_t mat = gHMD->GetEyeToHeadTransform(vr::Eye_Left);
-		//m_fEyeDistance=Modify(m_fEyeDistance, 1.0, 0, 200);
-		str.append(sep1);
-		str.append("IPD = ");
-		str.append(std::to_string(eyeDistance()));
-		str.append(sep2);
-		str.append("\nFocus Distance = ");
-		str.append(std::to_string(m_fFocusDistance));
-		str.append("\nTexture Shift = ");
-		str.append(std::to_string(m_fTextureShift));
-		str.append("\nTexture Zoom = ");
-		str.append(std::to_string(m_fTextureZoom));
-		str.append("\nFOV = ");
-		str.append(std::to_string(m_fFOV));
-		str.append("\n \nDistance between left and right camera.\nUsually the same as the IPD of your HMD.\nIf objects appear too small or too big try other values. ");
-	}
-	else if (m_iMenuIndex == 2)
-	{
-		m_fFocusDistance=Modify(m_fFocusDistance, 0.25, 0.5, 10);
-		str.append("IPD = ");
-		str.append(std::to_string(eyeDistance()));
-		str.append(sep1);
-		str.append("Focus Distance = ");
-		str.append(std::to_string(m_fFocusDistance));
-		str.append(sep2);
-		str.append("\nTexture shift = ");
-		str.append(std::to_string(m_fTextureShift));
-		str.append("\nTexture Zoom = ");
-		str.append(std::to_string(m_fTextureZoom));
-		str.append("\nFOV = ");
-		str.append(std::to_string(m_fFOV));
 
-		str.append("\n \nFocus distance of the cameras in meters");
-	}
-	else if (m_iMenuIndex == 3)
-	{
-		m_fTextureShift = Modify(m_fTextureShift, 0.5, -100, 100);
-		str.append("IPD = ");
-		str.append(std::to_string(eyeDistance()));
-		str.append("\nFocus Distance = ");
-		str.append(std::to_string(m_fFocusDistance));
-		str.append(sep1);
-		str.append("Texture shift = ");
-		str.append(std::to_string(m_fTextureShift));
-		str.append(sep2);
-		str.append("\nTexture Zoom = ");
-		str.append(std::to_string(m_fTextureZoom));
-		str.append("\nFOV = ");
-		str.append(std::to_string(m_fFOV));
-		str.append("\n \nApplies a texture shift in case your HMD's focus point is not in the center of the texture.");
-	}
-	else if (m_iMenuIndex == 4)
-	{
-		m_fTextureZoom = Modify(m_fTextureZoom, 1, -200, 200);
-		str.append("IPD = ");
-		str.append(std::to_string(eyeDistance()));
-		str.append("\nFocus Distance = ");
-		str.append(std::to_string(m_fFocusDistance));
-		str.append("\nTexture shift = ");
-		str.append(std::to_string(m_fTextureShift));
-		str.append(sep1);
-		str.append("Texture Zoom = ");
-		str.append(std::to_string(m_fTextureZoom));
-		str.append(sep2);
-		str.append("\nFOV = ");
-		str.append(std::to_string(m_fFOV));
-		str.append("\n \nZooms the view in or out. It may help with wide FOV HMD's like Pimax.\n Zoom in reduces quality. Zoom out increases quality\nWhen this value is changed FOV must also be adjusted.");
-	}
-	else if (m_iMenuIndex == 5)
-	{
-		m_fFOV = Modify(m_fFOV, 0.5, 50, 175);
-		// LLViewerCamera::getInstance()->setDefaultFOV(m_fFOV * DEG_TO_RAD);
-		str.append("IPD = ");
-		str.append(std::to_string(eyeDistance()));
-		str.append("\nFocus Distance = ");
-		str.append(std::to_string(m_fFocusDistance));
-		str.append("\nTexture shift = ");
-		str.append(std::to_string(m_fTextureShift));
-		str.append("\nTexture Zoom = ");
-		str.append(std::to_string(m_fTextureZoom));
-		str.append(sep1);
-		str.append("FOV = ");
-		str.append(std::to_string(m_fFOV));
-		str.append(sep2);
-		str.append("\n \nField of view in degree adjustment. Usually 100 degree is good.\n It should be adjusted when texture zoom is changed.");
-	}
-	return str;
-}
 
-F32 llviewerVR::Modify(F32 val, F32 step, F32 min, F32 max)
-{
-	if (gKeyboard->getKeyDown(m_kPlusKey) && (!m_bPlusKeyDown || gKeyboard->getKeyElapsedTime(m_kPlusKey) >1))
-	{
-		m_bPlusKeyDown = TRUE;
-		val += step;
-		if (val > max)
-			val = max;
-		return val;
-	}
-	else if (!gKeyboard->getKeyDown(m_kPlusKey) && m_bPlusKeyDown)
-	{
-		m_bPlusKeyDown = FALSE;
-		/*val += step;
-		if (val > max)
-			val = max;
-		return val;*/
-
-	}
-	if (gKeyboard->getKeyDown(m_kMinusKey) && !m_bMinusKeyDown)
-	{
-		m_bMinusKeyDown = TRUE;
-	}
-	else if (!gKeyboard->getKeyDown(m_kMinusKey) && m_bMinusKeyDown)
-	{
-		m_bMinusKeyDown = FALSE;
-		val -= step;
-		if (val < min)
-			val = min;
-		return val;
-	}
-	return val;
-}
-
-std::string llviewerVR::INISaveRead(bool save)
-{
-	std::string path = gDirUtilp->getOSUserAppDir()+"\\vrconfig.ini";
-	std::string ret;
-	ret.append(path);
-	ret.append("\n");
-	std::string line;
-	std::fstream file;
-	if (!save)
-	{
-		file.open(path, std::ios_base::in);
-
-		if (file.is_open())
-		{
-			while (getline(file, line, ','))
-			{
-				if (line == "EyeDistance")
-				{
-					//ret.append(line.append("|"));
-					getline(file, line, ',');
-					//m_fEyeDistance = std::stof(line);
-				}
-				else if (line == "FocusDistance")
-				{
-					//ret.append(line.append("|"));
-					getline(file, line, ',');
-					m_fFocusDistance = std::stof(line);
-				}
-				else if (line == "TextureShift")
-				{
-					//ret.append(line.append("|"));
-					getline(file, line, ',');
-					m_fTextureShift = std::stof(line);
-				}
-				else if (line == "TextureZoom")
-				{
-					//ret.append(line.append("|"));
-					getline(file, line, ',');
-					m_fTextureZoom = std::stof(line);
-				}
-				else if (line == "FieldOfView")
-				{
-					//ret.append(line.append("|"));
-					getline(file, line, ',');
-					m_fFOV = std::stof(line);
-				}
-
-			}
-			file.close();
-		}
-		else
-			ret.append("\n file not open!!!\n");
-	}
-	return ret;
-
-}
 
 void llviewerVR::Debug()
 {
@@ -2160,6 +1945,28 @@ void llviewerVR::Debug()
 	LLCoordGL mcpos = gViewerWindow->getCurrentMouse();
 	LLVector3 voffset = gHmdPos - gHmdOffsetPos;
 	std::string str;
+	F32 uMinLeft;
+	F32 uMaxLeft;
+	F32 vMinLeft;
+	F32 vMaxLeft;
+	F32 uMinRight;
+	F32 uMaxRight;
+	F32 vMinRight;
+	F32 vMaxRight;
+	F32 leftVrTanAngleLeft = 0.0;
+	F32 leftVrTanAngleRight = 0.0;
+	F32 leftVrTanAngleUp = 0.0;
+	F32 leftVrTanAngleDown = 0.0;
+	gHMD->GetProjectionRaw(vr::Eye_Left, &leftVrTanAngleLeft, &leftVrTanAngleRight, &leftVrTanAngleDown, &leftVrTanAngleUp); // Valve documentation backwards?
+	F32 rightVrTanAngleLeft = 0.0;
+	F32 rightVrTanAngleRight = 0.0;
+	F32 rightVrTanAngleUp = 0.0;
+	F32 rightVrTanAngleDown = 0.0;
+	gHMD->GetProjectionRaw(vr::Eye_Right, &rightVrTanAngleLeft, &rightVrTanAngleRight, &rightVrTanAngleDown, &rightVrTanAngleUp); // Valve documentation backwards?
+
+
+	calcUVBounds(vr::Eye_Left, &uMinLeft, &uMaxLeft, &vMinLeft, &vMaxLeft);
+	calcUVBounds(vr::Eye_Right, &uMinRight, &uMaxRight, &vMinRight, &vMaxRight);
 	str.append(" Cam Pos \n< ");
 	str.append(std::to_string(m_vpos.mV[VX]));
 	str.append(" , ");
@@ -2240,6 +2047,44 @@ void llviewerVR::Debug()
 	str.append(std::to_string(eyeDistance()));
 	str.append("\nCurrent FOV \n");
 	str.append(std::to_string(LLViewerCamera::getInstance()->getDefaultFOV()));
+
+
+	str.append("\nHMD FOV Left eye\n");
+	str.append("Left = ");
+	str.append(std::to_string(atan(leftVrTanAngleLeft) * 180.0/3.14));
+	str.append("; Right = ");
+	str.append(std::to_string(atan(leftVrTanAngleRight) * 180.0/3.14));
+	str.append("; Down = ");
+	str.append(std::to_string(atan(leftVrTanAngleDown) * 180.0/3.14));
+	str.append("; Up = ");
+	str.append(std::to_string(atan(leftVrTanAngleUp) * 180.0/3.14));
+	str.append("\nHMD FOV Right eye\n");
+	str.append("Left = ");
+	str.append(std::to_string(atan(rightVrTanAngleLeft) * 180.0/3.14));
+	str.append("; Right = ");
+	str.append(std::to_string(atan(rightVrTanAngleRight) * 180.0/3.14));
+	str.append("; Down = ");
+	str.append(std::to_string(atan(rightVrTanAngleDown) * 180.0/3.14));
+	str.append("; Up = ");
+	str.append(std::to_string(atan(rightVrTanAngleUp) * 180.0/3.14));
+	str.append("\nUV Bounds Left Eye\n");
+	str.append("uMin = ");
+	str.append(std::to_string(uMinLeft));
+	str.append("; uMax = ");
+	str.append(std::to_string(uMaxLeft));
+	str.append("; vMin = ");
+	str.append(std::to_string(vMinLeft));
+	str.append("; vMax = ");
+	str.append(std::to_string(vMaxLeft));
+	str.append("\nUV Bounds Right Eye\n");
+	str.append("uMin = ");
+	str.append(std::to_string(uMinRight));
+	str.append("; uMax = ");
+	str.append(std::to_string(uMaxRight));
+	str.append("; vMin = ");
+	str.append(std::to_string(vMinRight));
+	str.append("; vMax = ");
+	str.append(std::to_string(vMaxRight));
 	//str.append("\n LastGL ERR=");
 	//str.append(std::to_string(err));
 
